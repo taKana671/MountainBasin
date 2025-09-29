@@ -49,7 +49,8 @@ class Walker(NodePath):
         shape = BulletCapsuleShape(w, h - 2 * w, ZUp)
         super().__init__(BulletCharacterControllerNode(shape, 0.4, 'wolker'))
 
-        self.set_collide_mask(BitMask32.allOn())
+        # self.set_collide_mask(BitMask32.allOn())
+        self.set_collide_mask(BitMask32.bit(1))
         self.set_scale(0.5)
         base.world.attach_character(self.node())
 
@@ -100,7 +101,11 @@ class BasinTerrain(ShowBase):
         # setup character
         self.walker = Walker()
         self.walker.reparent_to(self.render)
-        self.walker.set_pos(Point3(14.28977, 0.85406595, -50.58001))
+        self.walker.set_pos(Point3(0.0, 0.0, -50.58001))
+        self.walker.set_pos(Point3(0.0, 0.0, -48))
+
+        # self.walker.set_pos(8.510511, -58.909461, 100)
+
         self.floater = NodePath('floater')
         self.floater.set_z(3.0)
         self.floater.reparent_to(self.walker)
@@ -120,8 +125,8 @@ class BasinTerrain(ShowBase):
         # #################################
 
         self.scene = Scene(self.world)
-        # self.target = self.scene.tunnel
-        self.target = None
+        self.target = self.scene.tunnel
+        # self.target = None
 
 
         self.dragging = False

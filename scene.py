@@ -1,31 +1,22 @@
-import numpy as np
-
-from panda3d.bullet import BulletRigidBodyNode, BulletSoftBodyNode
-from panda3d.bullet import BulletConvexHullShape, BulletHeightfieldShape, ZUp
+from panda3d.bullet import BulletRigidBodyNode
+from panda3d.bullet import BulletHeightfieldShape, ZUp
 from panda3d.bullet import BulletTriangleMeshShape, BulletTriangleMesh
-from panda3d.bullet import BulletHelper
-from panda3d.core import NodePath, PandaNode
-from panda3d.core import Vec3, Point3, BitMask32, LColor
+from panda3d.core import NodePath
+from panda3d.core import Vec3, Point3, BitMask32
 from panda3d.core import Filename, PNMImage
 from panda3d.core import Shader
 from panda3d.core import TextureStage, TransformState
 from panda3d.core import GeoMipTerrain
-from panda3d.core import GeomNode, GeomVertexFormat
+
 from shapes import Box, Cylinder, Plane
 
 
-class Tunnel(NodePath):
+class Model(NodePath):
 
-    def __init__(self, length=15., width=7., wall_height=6., thickness=1.2):
-        super().__init__(BulletRigidBodyNode('tunnel'))
-        self.length = length
-        self.width = width
-        self.thickness = thickness
-        self.wall_height = wall_height
-
+    def __init__(self, name, mask):
+        super().__init__(BulletRigidBodyNode(name))
         self.node().set_mass(0)
-        self.set_collide_mask(BitMask32.bit(1))
-        self.create_model()
+        self.set_collide_mask(mask)
 
     def assemble(self, parent, model, pos, hpr):
         mesh = BulletTriangleMesh()
@@ -35,6 +26,32 @@ class Tunnel(NodePath):
 
         model.set_pos_hpr(pos, hpr)
         model.reparent_to(parent)
+
+    def setup_shader(self, parent, vert, frag, textures):
+        shader = Shader.load(Shader.SL_GLSL, f'shaders/{vert}', f'shaders/{frag}')
+        parent.set_shader(shader)
+
+        for i, (img_file, scale) in enumerate(textures):
+            ts = TextureStage(f'ts{i}')
+            ts.set_sort(i)
+
+            if scale:
+                parent.set_shader_input(f'tex_ScaleFactor{i}', scale)
+
+            tex = base.loader.load_texture(img_file)
+            parent.set_texture(ts, tex)
+
+
+class Tunnel(Model):
+
+    def __init__(self, name, length, width=7., wall_height=6., thickness=1.2):
+        super().__init__(name, BitMask32.bit(1))
+        self.length = length
+        self.width = width
+        self.thickness = thickness
+        self.wall_height = wall_height
+
+        self.create_model()
 
     def create_model(self):
         root_wall = NodePath('door_wall')
@@ -70,28 +87,15 @@ class Tunnel(NodePath):
         root_wall.set_texture(tex)
 
 
-class Ground(NodePath):
+class Ground(Model):
 
-    def __init__(self, w=129, d=129, segs_w=43, segs_d=43):
-        super().__init__(BulletRigidBodyNode('ground'))
-        self.node().set_mass(0)
-        self.set_collide_mask(1)
+    def __init__(self, name, w=129, d=129, segs_w=43, segs_d=43):
+        super().__init__(name, BitMask32.bit(1))
         self.create_model(w, d, segs_w, segs_d)
 
     def create_model(self, w, d, segs_w, segs_d):
-        self.model = Plane(w, d, segs_w, segs_d).create()
-
-        mesh = BulletTriangleMesh()
-        mesh.add_geom(self.model.node().get_geom(0))
-        shape = BulletTriangleMeshShape(mesh, dynamic=False)
-        self.node().add_shape(shape)
-
-        self.model.set_pos(Point3(0, 0, 0))
-        self.model.reparent_to(self)
-
-        shader = Shader.load(Shader.SL_GLSL, 'shaders/ground_v.glsl', 'shaders/ground_f.glsl')
-        self.set_shader(shader)
-        # self.set_shader_input("camera", base.camera)
+        ground = Plane(w, d, segs_w, segs_d).create()
+        self.assemble(self, ground, Point3(0, 0, 0), Vec3(0, 0, 0))
 
         textures = [
             ['textures/tex_moss.png', 10],
@@ -99,34 +103,24 @@ class Ground(NodePath):
             ['terrain/ground_mask.png', None]
         ]
 
-        for i, (img_file, scale) in enumerate(textures):
-            ts = TextureStage(f'ts{i}')
-            ts.set_sort(i)
-
-            if scale:
-                self.set_shader_input(f'tex_ScaleFactor{i}', scale)
-
-            tex = base.loader.load_texture(img_file)
-            self.set_texture(ts, tex)
-
+        self.setup_shader(self, 'ground_v.glsl', 'ground_f.glsl', textures)
         self.set_shader_input('tex_attribute', base.loader.load_texture('terrain/heightmap.png'))
 
 
-class Terrain(NodePath):
+class Terrain(Model):
 
-    def __init__(self):
-        super().__init__(BulletRigidBodyNode('terrain'))
-        self.file_path = 'terrain/heightmap.png'
-        self.height = 80
+    def __init__(self, name, file_path, height=80):
+        super().__init__(name, BitMask32.bit(2))
+        self.file_path = file_path
+        self.height = height
 
-        self.node().set_mass(0)
-        self.set_collide_mask(BitMask32.bit(1))
-        shape = BulletHeightfieldShape(base.loader.load_texture(self.file_path), self.height, ZUp)
-        shape.set_use_diamond_subdivision(True)
-        self.node().add_shape(shape)
         self.make_geomip_terrain()
 
     def make_geomip_terrain(self):
+        shape = BulletHeightfieldShape(base.loader.load_texture(self.file_path), self.height, ZUp)
+        shape.set_use_diamond_subdivision(True)
+        self.node().add_shape(shape)
+
         img = PNMImage(Filename(self.file_path))
         self.terrain = GeoMipTerrain('geomip_terrain')
         self.terrain.set_heightfield(self.file_path)
@@ -137,9 +131,9 @@ class Terrain(NodePath):
         self.terrain.set_min_level(2)
         self.terrain.set_focal_point(base.camera)
 
-        size_x, size_y = img.get_size()
-        x = (size_x - 1) / 2
-        y = (size_y - 1) / 2
+        self.size_x, self.size_y = img.get_size()
+        x = (self.size_x - 1) / 2
+        y = (self.size_y - 1) / 2
 
         pos = Point3(-x, -y, -(self.height / 2))
         self.root = self.terrain.get_root()
@@ -148,11 +142,6 @@ class Terrain(NodePath):
 
         self.terrain.generate()
         self.root.reparent_to(self)
-
-        shader = Shader.load(Shader.SL_GLSL, 'shaders/terrain_v.glsl', 'shaders/terrain_f.glsl')
-        self.root.set_shader(shader)
-        # self.root.clear_texture()
-        self.root.set_shader_input("camera", base.camera)
 
         textures = [
             ['textures/tex_rock.png', 10],
@@ -163,17 +152,10 @@ class Terrain(NodePath):
             ['terrain/ground_mask.png', None]
         ]
 
-        for i, (img_file, scale) in enumerate(textures):
-            ts = TextureStage(f'ts{i}')
-            ts.set_sort(i)
-
-            if scale:
-                self.root.set_shader_input(f'tex_ScaleFactor{i}', scale)
-
-            tex = base.loader.load_texture(img_file)
-            self.root.set_texture(ts, tex)
-
+        self.root.set_shader_input("camera", base.camera)
+        self.setup_shader(self.root, 'terrain_v.glsl', 'terrain_f.glsl', textures)
         self.root.set_shader_input('tex_attribute', base.loader.load_texture('terrain/attributes.png'))
+        self.root.set_two_sided(True)
 
 
 class Scene:
@@ -183,33 +165,35 @@ class Scene:
         self.scene = NodePath('scene')
         self.scene.reparent_to(base.render)
 
-        self.terrain = Terrain()
+        self.terrain = Terrain('terrain', 'terrain/heightmap.png')
         self.terrain.reparent_to(self.scene)
         self.world.attach(self.terrain.node())
         self.terrain.set_z(-12)
 
-        z = -49.4
+        z = -49.58
 
         tunnels = [
-            Point3(0.089979745, -39.261665, z),  # angle: 0
-            Point3(23.209034, -23.172128, z),    # angle: 45
-            Point3(31.165838, -0.0605596, z),    # angle: 90
-            Point3(23.421295, 22.43706, z),      # angle: 135
-            Point3(-0.065003, 36.80987, z),      # angle: 180
-            Point3(-23.492284, 23.602266, z),    # angle: 225
-            Point3(-39.154972, 0.032763533, z),  # angle: 270
-            Point3(-29.590984, -30.589447, z)    # angle: 315
+            # [Point3(0.089979745, -37.0617, z), 38],    # angle: 0
+            [Point3(26.159046, -26.17214, z), 38],     # angle: 45
+            # [Point3(36.965766, -0.0605596, z), 39],    # angle: 90
+            [Point3(26.321306, 25.33707, z), 37],      # angle: 135
+            # [Point3(-0.065003, 37.109867, z), 39],     # angle: 180
+            [Point3(-26.392295, 26.402277, z), 38],    # angle: 225
+            # [Point3(-37.055004, 0.032763533, z), 38],  # angle: 270
+            [Point3(-25.89097, -26.889432, z), 38],    # angle: 315
         ]
 
-        for i, pos in enumerate(tunnels):
-            hpr = Vec3(i * 45, 0, 0)
-            tunnel = Tunnel()
+        for i, (pos, length) in enumerate(tunnels):
+            hpr = Vec3(45 + 90 * i, 0, 0)
+            # hpr = Vec3(i * 45, 0, 0)
+            tunnel = Tunnel(f'tunnel_{i}', length)
             tunnel.set_pos_hpr(pos, hpr)
             tunnel.reparent_to(self.scene)
-            self.world.attach(tunnel.node())  
+            self.world.attach(tunnel.node())
 
-        self.ground = Ground()
+        self.tunnel = tunnel
+
+        self.ground = Ground('ground', self.terrain.size_x, self.terrain.size_y)
         self.ground.reparent_to(self.scene)
         self.world.attach(self.ground.node())
-        # self.ground.set_pos(Point3(0, 0, -52))
-        self.ground.set_pos(Point3(0, 0, -52.01))
+        self.ground.set_pos(Point3(0, 0, -51))
