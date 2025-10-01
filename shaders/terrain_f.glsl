@@ -78,25 +78,14 @@ void main() {
 
     vec4 tex_g = texture(p3d_Texture5, texcoord_g.st).rgba;
     
-    float w = tex_g.r;
-    vec3 ground = tex4.rgb * w + tex3 * (1.0 - w);
-    vec3 color = vertex.z <= 0.0 ? ground: diffuse;
-
-    // vec3 normal = get_terrain_normal();
-    // vec3 fake_sun = normalize(vec3(0.7, 0.2, 0.6));
-    // vec3 shading = max(0.0, dot(normal, fake_sun)) * color;
-    // shading += vec3(0.07, 0.07, 0.1); 
-    // fragColor = vec4(shading, 1.0);
-    
-    // fake fog
-    // float dist = distance(vtx_pos, wspos_camera);
-    // float fog_factor = smoothstep(0.0, 1.0, dist/1000.0);
-    // color = mix(color, vec3(0.7, 0.7, 0.8), fog_factor);
+    // float w = tex_g.r;
+    // vec3 ground = tex4.rgb * w + tex3 * (1.0 - w);
+    // vec3 color = vertex.z <= 0.0 ? ground: diffuse;
 
 
-    fragColor = vec4(color, 1.0);
+    fragColor = vec4(diffuse, 1.0);
 
-    if (vertex.z > 0.0 && vertex.z < 0.1 && tex_g.r > 0.2) {
+    if ((vertex.z <= 0.0) || (vertex.z > 0.0 && vertex.z < 0.1 && tex_g.r > 0.2)) {
         discard;
     }
 }

@@ -1,13 +1,8 @@
 import sys
-from enum import Enum, auto
 
-from direct.actor.Actor import Actor
 import direct.gui.DirectGuiGlobals as DGG
-from panda3d.bullet import BulletCapsuleShape, ZUp
-from panda3d.bullet import BulletCharacterControllerNode
 from panda3d.bullet import BulletWorld, BulletDebugNode
 from panda3d.core import Vec3, Vec2, Point3, LColor, Vec4, BitMask32
-from panda3d.core import TransformState
 from panda3d.core import AmbientLight, DirectionalLight
 from panda3d.core import NodePath, TextNode
 from panda3d.core import load_prc_file_data
@@ -19,6 +14,7 @@ from direct.showbase.ShowBaseGlobal import globalClock
 from direct.showbase.InputStateGlobal import inputState
 
 from scene import Scene
+from characters.walker import Walker, Motions
 
 
 load_prc_file_data("", """
@@ -28,61 +24,6 @@ load_prc_file_data("", """
     filled-wireframe-apply-shader true
     stm-max-views 8
     stm-max-chunk-count 2048""")
-    # parallax-mapping-samples 3
-    # parallax-mapping-scale 0.1""")
-
-
-class Motions(Enum):
-
-    FORWARD = auto()
-    BACKWARD = auto()
-    TURN = auto()
-
-
-class Walker(NodePath):
-
-    RUN = 'run'
-    WALK = 'walk'
-
-    def __init__(self):
-        h, w = 6, 1.2
-        shape = BulletCapsuleShape(w, h - 2 * w, ZUp)
-        super().__init__(BulletCharacterControllerNode(shape, 0.4, 'wolker'))
-
-        # self.set_collide_mask(BitMask32.allOn())
-        self.set_collide_mask(BitMask32.bit(1))
-        self.set_scale(0.5)
-        base.world.attach_character(self.node())
-
-        self.actor = Actor(
-            'models/ralph/ralph.egg',
-            {self.RUN: 'models/ralph/ralph-run.egg',
-             self.WALK: 'models/ralph/ralph-walk.egg'}
-        )
-        self.actor.set_transform(TransformState.make_pos(Vec3(0, 0, -2.5)))
-        self.actor.set_name('ralph')
-        self.actor.reparent_to(self)
-
-    def play_anim(self, motion):
-        match motion:
-
-            case Motions.FORWARD:
-                anim = Walker.RUN
-
-            case Motions.BACKWARD:
-                anim = Walker.WALK
-
-            case Motions.TURN:
-                anim = Walker.WALK
-
-            case _:
-                if self.actor.get_current_anim() is not None:
-                    self.actor.stop()
-                    self.actor.pose(Walker.WALK, 5)
-                return
-
-        if self.actor.get_current_anim() != anim:
-            self.actor.loop(anim)
 
 
 class BasinTerrain(ShowBase):
@@ -101,8 +42,8 @@ class BasinTerrain(ShowBase):
         # setup character
         self.walker = Walker()
         self.walker.reparent_to(self.render)
-        self.walker.set_pos(Point3(0.0, 0.0, -50.58001))
-        self.walker.set_pos(Point3(0.0, 0.0, -48))
+        # self.walker.set_pos(Point3(0.0, 0.0, -50.58001))
+        self.walker.set_pos(Point3(0.0, 0.0, -49.5))
 
         # self.walker.set_pos(8.510511, -58.909461, 100)
 
@@ -111,7 +52,7 @@ class BasinTerrain(ShowBase):
         self.floater.reparent_to(self.walker)
 
         # setup camera
-        self.camera.reparent_to(self.walker)
+        self.camera.reparent_to(self.walker.direction_nd)
         self.camera.set_pos(Vec3(0, 10, 5))
         self.camera.look_at(self.floater)
         self.camLens.set_fov(90)
@@ -192,30 +133,47 @@ class BasinTerrain(ShowBase):
         else:
             self.debug.hide()
 
-    def control_walker(self, dt):
-        speed = Vec3(0, 0, 0)
-        omega = 0.0
-        motion = None
+    def control_walker(self):
+        direction = Vec2()
 
         if inputState.is_set('forward'):
-            speed.set_y(-10.0)
-            motion = Motions.FORWARD
+            direction.set_y(-1)
 
         if inputState.is_set('backward'):
-            speed.set_y(5.0)
-            motion = Motions.BACKWARD
+            direction.set_y(1)
 
         if inputState.is_set('left'):
-            omega = 30.0
-            motion = Motions.TURN
+            direction.set_x(1)
 
         if inputState.is_set('right'):
-            omega = -30.0
-            motion = Motions.TURN
+            direction.set_x(-1)
 
-        self.walker.node().set_angular_movement(omega)
-        self.walker.node().set_linear_movement(speed, True)
-        self.walker.play_anim(motion)
+        return direction
+
+
+        # speed = Vec3(0, 0, 0)
+        # omega = 0.0
+        # motion = None
+
+        # if inputState.is_set('forward'):
+        #     speed.set_y(-10.0)
+        #     motion = Motions.FORWARD
+
+        # if inputState.is_set('backward'):
+        #     speed.set_y(5.0)
+        #     motion = Motions.BACKWARD
+
+        # if inputState.is_set('left'):
+        #     omega = 30.0
+        #     motion = Motions.TURN
+
+        # if inputState.is_set('right'):
+        #     omega = -30.0
+        #     motion = Motions.TURN
+
+        # # self.walker.node().set_angular_movement(omega)
+        # # self.walker.node().set_linear_movement(speed, True)
+        # self.walker.play_anim(motion)
 
     def mouse_click(self):
         self.dragging = True
@@ -246,7 +204,8 @@ class BasinTerrain(ShowBase):
 
     def update(self, task):
         dt = globalClock.get_dt()
-        self.control_walker(dt)
+        direction = self.control_walker()
+        self.walker.update(dt, direction)
 
         # ##### when rotate by dragging#####
         # if self.mouseWatcherNode.has_mouse():

@@ -90,7 +90,7 @@ class Tunnel(Model):
 class Ground(Model):
 
     def __init__(self, name, w=129, d=129, segs_w=43, segs_d=43):
-        super().__init__(name, BitMask32.bit(1))
+        super().__init__(name, BitMask32.bit(2))
         self.create_model(w, d, segs_w, segs_d)
 
     def create_model(self, w, d, segs_w, segs_d):
