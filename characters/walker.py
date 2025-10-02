@@ -23,6 +23,8 @@ class Walker(NodePath):
 
     def __init__(self):
         super().__init__(BulletRigidBodyNode('walker'))
+        self.sweep_shape = BulletSphereShape(0.5)
+
         h, w = 6, 1.2
         shape = BulletCapsuleShape(w, h - 2 * w, ZUp)
         # super().__init__(BulletCharacterControllerNode(shape, 0.4, 'wolker'))
@@ -32,7 +34,8 @@ class Walker(NodePath):
         self.node().set_ccd_swept_sphere_radius(0.5)
 
         # self.set_collide_mask(BitMask32.allOn())
-        self.set_collide_mask(BitMask32.bit(1))
+        self.set_collide_mask(BitMask32.bit(2))
+        # self.set_collide_mask(BitMask32.bit(3) | BitMask32.bit(4))
         self.set_scale(0.5)
         # base.world.attach_character(self.node())
         base.world.attach(self.node())
@@ -76,8 +79,17 @@ class Walker(NodePath):
         to_pos = from_pos + distance
 
         if (hit := base.world.ray_test_closest(from_pos, to_pos, mask)).has_hit():
-            print(hit.get_node().name)
+            # print(hit.get_node().name)
             return hit
+
+    def check_collisions(self, current_pos, next_pos):
+        from_pos = TransformState.make_pos(current_pos)
+        to_pos = TransformState.make_pos(next_pos)
+
+        if (result := base.world.sweep_test_closest(
+                self.sweep_shape, from_pos, to_pos, BitMask32.bit(1), 0.0)).has_hit():
+            print(result.get_node().name)
+            return result
 
     def move(self, dt, direction_y):
         current_pos = self.get_pos()
@@ -90,6 +102,15 @@ class Walker(NodePath):
             return
 
         next_pos.z = hit.get_hit_pos().z + 1.5
+
+        if (result := self.check_collisions(current_pos, next_pos)):
+            if result.get_node().get_name().startswith('tunnel'):
+                return
+
+            if not (hit := self.shoot_a_ray(
+                    next_pos, Vec3(0, 0, -2.5), BitMask32.bit(3))):
+                return
+
         self.set_pos(next_pos)
 
     def turn(self, dt, direction_x):

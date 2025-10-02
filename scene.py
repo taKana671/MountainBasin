@@ -2,11 +2,12 @@ from panda3d.bullet import BulletRigidBodyNode
 from panda3d.bullet import BulletHeightfieldShape, ZUp
 from panda3d.bullet import BulletTriangleMeshShape, BulletTriangleMesh
 from panda3d.core import NodePath
-from panda3d.core import Vec3, Point3, BitMask32
+from panda3d.core import Vec3, Point2, Point3, BitMask32, LColor
 from panda3d.core import Filename, PNMImage
 from panda3d.core import Shader
 from panda3d.core import TextureStage, TransformState
 from panda3d.core import GeoMipTerrain
+from panda3d.core import TransparencyAttrib
 
 from shapes import Box, Cylinder, Plane
 
@@ -87,6 +88,19 @@ class Tunnel(Model):
         root_wall.set_texture(tex)
 
 
+class Sensor(Model):
+
+    def __init__(self, name, w, d):
+        super().__init__(name, BitMask32.bit(3))
+        self.set_transparency(TransparencyAttrib.MAlpha)
+        self.set_color(LColor(1, 1, 1, 1))
+        self.create_model(w, d)
+
+    def create_model(self, w, d):
+        sensor = Plane(w, d, int(w), int(d)).create()
+        self.assemble(self, sensor, Point3(0, 0, 0), Vec3(0, 0, 0))
+
+
 class Ground(Model):
 
     def __init__(self, name, w=129, d=129, segs_w=43, segs_d=43):
@@ -110,7 +124,7 @@ class Ground(Model):
 class Terrain(Model):
 
     def __init__(self, name, file_path, height=80):
-        super().__init__(name, BitMask32.bit(2))
+        super().__init__(name, BitMask32.bit(1))
         self.file_path = file_path
         self.height = height
 
@@ -170,28 +184,37 @@ class Scene:
         self.world.attach(self.terrain.node())
         self.terrain.set_z(-12)
 
-        z = -49.58
+        tunnel_z = -49.58
+        sensor_z = -51.03
 
         tunnels = [
             # [Point3(0.089979745, -37.0617, z), 38],    # angle: 0
-            [Point3(26.159046, -26.17214, z), 38],     # angle: 45
+            [Point2(26.159046, -26.17214), 38],     # angle: 45
             # [Point3(36.965766, -0.0605596, z), 39],    # angle: 90
-            [Point3(26.321306, 25.33707, z), 37],      # angle: 135
+            [Point2(26.321306, 25.33707), 37],      # angle: 135
             # [Point3(-0.065003, 37.109867, z), 39],     # angle: 180
-            [Point3(-26.392295, 26.402277, z), 38],    # angle: 225
+            [Point2(-26.392295, 26.402277), 38],    # angle: 225
             # [Point3(-37.055004, 0.032763533, z), 38],  # angle: 270
-            [Point3(-25.89097, -26.889432, z), 38],    # angle: 315
+            [Point2(-25.89097, -26.889432), 38],    # angle: 315
         ]
 
-        for i, (pos, length) in enumerate(tunnels):
+        for i, (xy, length) in enumerate(tunnels):
             hpr = Vec3(45 + 90 * i, 0, 0)
             # hpr = Vec3(i * 45, 0, 0)
             tunnel = Tunnel(f'tunnel_{i}', length)
-            tunnel.set_pos_hpr(pos, hpr)
+            tunnel.set_pos_hpr(Point3(xy, tunnel_z), hpr)
             tunnel.reparent_to(self.scene)
             self.world.attach(tunnel.node())
 
-        self.tunnel = tunnel
+            w = tunnel.width - tunnel.thickness * 2
+            sensor = Sensor(f'sensor_{i}', w, length)
+            sensor.set_pos_hpr(Point3(xy, sensor_z), hpr)
+            sensor.reparent_to(self.scene)
+            self.world.attach(sensor.node())
+
+
+
+        # self.tunnel = tunnel
 
         self.ground = Ground('ground', self.terrain.size_x, self.terrain.size_y)
         self.ground.reparent_to(self.scene)

@@ -66,8 +66,8 @@ class BasinTerrain(ShowBase):
         # #################################
 
         self.scene = Scene(self.world)
-        self.target = self.scene.tunnel
-        # self.target = None
+        # self.target = self.scene.tunnel
+        self.target = None
 
 
         self.dragging = False
