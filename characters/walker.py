@@ -82,13 +82,13 @@ class Walker(NodePath):
             # print(hit.get_node().name)
             return hit
 
-    def check_collisions(self, current_pos, next_pos):
+    def check_collisions(self, current_pos, next_pos, mask):
         from_pos = TransformState.make_pos(current_pos)
         to_pos = TransformState.make_pos(next_pos)
 
         if (result := base.world.sweep_test_closest(
-                self.sweep_shape, from_pos, to_pos, BitMask32.bit(1), 0.0)).has_hit():
-            print(result.get_node().name)
+                self.sweep_shape, from_pos, to_pos, mask, 0.0)).has_hit():
+            # print(result.get_node().name)
             return result
 
     def move(self, dt, direction_y):
@@ -102,9 +102,15 @@ class Walker(NodePath):
             return
 
         next_pos.z = hit.get_hit_pos().z + 1.5
+        # next_pos_tmp = current_pos + orientation * 5 * direction_y * speed * dt
+        # next_pos_tmp.z = hit.get_hit_pos().z + 1.5
 
-        if (result := self.check_collisions(current_pos, next_pos)):
+        # if (result := self.check_collisions(Point3(current_pos.xy, -50.5), Point3(next_pos.xy, -50.0))):
+        if (result := self.check_collisions(
+                current_pos, next_pos, BitMask32.bit(1) | BitMask32.bit(4))):
+
             if result.get_node().get_name().startswith('tunnel'):
+                # import pdb; pdb.set_trace()
                 return
 
             if not (hit := self.shoot_a_ray(
@@ -129,3 +135,10 @@ class Walker(NodePath):
             motion = Motions.TURN
 
         self.play_anim(motion)
+
+    def get_following_pt(self, relative_pt):
+        """Return a relative point to enable camera to follow the character
+           when the camera's view is blocked by an object like wall.
+        """
+        # return self.get_relative_point(self.direction_nd, Vec3(0, 10, 2))
+        return self.get_relative_point(self.direction_nd, relative_pt)

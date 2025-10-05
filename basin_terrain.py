@@ -1,7 +1,7 @@
 import sys
 
 import direct.gui.DirectGuiGlobals as DGG
-from panda3d.bullet import BulletWorld, BulletDebugNode
+from panda3d.bullet import BulletWorld, BulletDebugNode, BulletSphereShape
 from panda3d.core import Vec3, Vec2, Point3, LColor, Vec4, BitMask32
 from panda3d.core import AmbientLight, DirectionalLight
 from panda3d.core import NodePath, TextNode
@@ -12,6 +12,7 @@ from direct.gui.DirectGui import DirectEntry, DirectFrame, DirectLabel, DirectBu
 from direct.showbase.ShowBase import ShowBase
 from direct.showbase.ShowBaseGlobal import globalClock
 from direct.showbase.InputStateGlobal import inputState
+from panda3d.core import TransformState, Quat
 
 from scene import Scene
 from characters.walker import Walker, Motions
@@ -20,7 +21,7 @@ from characters.walker import Walker, Motions
 load_prc_file_data("", """
     textures-power-2 none
     gl-coordinate-system default
-    window-title Panda3D Avoid Balls
+    window-title Panda3D Mountain Basin
     filled-wireframe-apply-shader true
     stm-max-views 8
     stm-max-chunk-count 2048""")
@@ -39,10 +40,12 @@ class BasinTerrain(ShowBase):
         self.debug = self.render.attach_new_node(BulletDebugNode('debug'))
         self.world.set_debug_node(self.debug.node())
 
+        self.sweep_shape = BulletSphereShape(1.0)
+        self.center = Point3(0, 0, 0)
+
         # setup character
         self.walker = Walker()
         self.walker.reparent_to(self.render)
-        # self.walker.set_pos(Point3(0.0, 0.0, -50.58001))
         self.walker.set_pos(Point3(0.0, 0.0, -49.5))
 
         # self.walker.set_pos(8.510511, -58.909461, 100)
@@ -52,10 +55,11 @@ class BasinTerrain(ShowBase):
         self.floater.reparent_to(self.walker)
 
         # setup camera
-        self.camera.reparent_to(self.walker.direction_nd)
-        self.camera.set_pos(Vec3(0, 10, 5))
+        self.camera.reparent_to(self.render)
+        self.camera.set_pos(Point3(0, -5, -47))
         self.camera.look_at(self.floater)
         self.camLens.set_fov(90)
+        self.camLens.set_near(0.1)
 
         # ##### when rotate by dragging#####
         # self.camera_root = NodePath('camera_root')
@@ -119,8 +123,10 @@ class BasinTerrain(ShowBase):
             self.target.set_pos_hpr(pos, hpr)
 
     def print_info(self):
-        print(f'target pos: {self.target.get_pos()}')
-        print(f'target hpr: {self.target.get_hpr()}')
+        if self.target:
+            print(f'target pos: {self.target.get_pos()}')
+            print(f'target hpr: {self.target.get_hpr()}')
+
         print(f'walker pos: {self.walker.get_pos()}')
         # rel_pos = self.walker.get_pos(self.scene.terrain.root)
         # block_pos = self.scene.terrain.terrain.get_block_from_pos(rel_pos.x, rel_pos.y)
@@ -149,31 +155,6 @@ class BasinTerrain(ShowBase):
             direction.set_x(-1)
 
         return direction
-
-
-        # speed = Vec3(0, 0, 0)
-        # omega = 0.0
-        # motion = None
-
-        # if inputState.is_set('forward'):
-        #     speed.set_y(-10.0)
-        #     motion = Motions.FORWARD
-
-        # if inputState.is_set('backward'):
-        #     speed.set_y(5.0)
-        #     motion = Motions.BACKWARD
-
-        # if inputState.is_set('left'):
-        #     omega = 30.0
-        #     motion = Motions.TURN
-
-        # if inputState.is_set('right'):
-        #     omega = -30.0
-        #     motion = Motions.TURN
-
-        # # self.walker.node().set_angular_movement(omega)
-        # # self.walker.node().set_linear_movement(speed, True)
-        # self.walker.play_anim(motion)
 
     def mouse_click(self):
         self.dragging = True
@@ -207,6 +188,9 @@ class BasinTerrain(ShowBase):
         direction = self.control_walker()
         self.walker.update(dt, direction)
 
+        if direction.y:
+            self.control_camera(dt)
+
         # ##### when rotate by dragging#####
         # if self.mouseWatcherNode.has_mouse():
         #     mouse_pos = self.mouseWatcherNode.get_mouse()
@@ -218,6 +202,45 @@ class BasinTerrain(ShowBase):
 
         self.world.do_physics(dt)
         return task.cont
+
+    def calc_distance(self, vec):
+        vec.set_z(0)
+        dist = vec.length()
+        vec.normalize()
+
+        return dist
+
+    def control_camera(self, dt):
+        next_pos = None
+        vec = self.walker.get_pos() - self.camera.get_pos()
+        dist = self.calc_distance(vec)
+
+        if dist > 5.0:
+            next_pos = self.camera.get_pos() + vec * (dist - 5.0)
+
+        if dist < 3.0:
+            next_pos = self.camera.get_pos() - vec * (3.0 - dist)
+
+        # To prevent the camera from going through the tunnel 3D models,
+        # if the ray hits the tunnel, adjust the movement position.
+        if next_pos:
+            if self.world.ray_test_closest(
+                    next_pos, self.walker.get_pos(), BitMask32.bit(4)).has_hit():
+                vec = next_pos - self.center
+                dist = self.calc_distance(vec)
+                # print('dist: ', dist, ' next_pos: ', next_pos)
+
+                # 36 is the approximate distance from the center(0, 0, 0) to the 
+                # four tunnel placement points.
+                if dist >= 36:
+                    next_pos = self.camera.get_pos() + vec * 20 * dt
+                else:
+                    next_pos = self.camera.get_pos() - vec * 20 * dt
+
+                # print('adjusted next pos', next_pos)
+            self.camera.set_pos(next_pos)
+
+        self.camera.look_at(self.floater)
 
 
 if __name__ == '__main__':

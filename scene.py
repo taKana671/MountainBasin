@@ -9,7 +9,7 @@ from panda3d.core import TextureStage, TransformState
 from panda3d.core import GeoMipTerrain
 from panda3d.core import TransparencyAttrib
 
-from shapes import Box, Cylinder, Plane
+from shapes import Box, Cylinder, Plane, RoundedCornerBox
 
 
 class Model(NodePath):
@@ -46,7 +46,7 @@ class Model(NodePath):
 class Tunnel(Model):
 
     def __init__(self, name, length, width=7., wall_height=6., thickness=1.2):
-        super().__init__(name, BitMask32.bit(1))
+        super().__init__(name, BitMask32.bit(4))
         self.length = length
         self.width = width
         self.thickness = thickness
@@ -86,6 +86,16 @@ class Tunnel(Model):
 
         tex = base.loader.load_texture('textures/9-19-20k-300x300.jpg')
         root_wall.set_texture(tex)
+
+        # guardrail = NodePath('guardrail')
+        # guardrail.reparent_to(self)
+
+        # rail = RoundedCornerBox(width=2., depth=2., height=0.3, open_top=True, open_bottom=True, thickness=0.2).create()
+        # pos = Point3(self.width / 2, self.length / 2 + 1.2, 0)
+        # self.assemble(guardrail, rail, pos, Vec3(0, 0, 90))
+
+        # tex = base.loader.load_texture('textures/1-1-17d-300x300.jpg')
+        # guardrail.set_texture(tex)
 
 
 class Sensor(Model):
