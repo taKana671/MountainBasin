@@ -1,3 +1,5 @@
+from enum import Enum
+
 from panda3d.bullet import BulletRigidBodyNode
 from panda3d.bullet import BulletHeightfieldShape, ZUp
 from panda3d.bullet import BulletTriangleMeshShape, BulletTriangleMesh
@@ -9,10 +11,22 @@ from panda3d.core import TextureStage, TransformState
 from panda3d.core import GeoMipTerrain
 from panda3d.core import TransparencyAttrib
 
-from shapes import Box, Cylinder, Plane, RoundedCornerBox
+from shapes import Box, Cylinder, Plane
 
 
-class Model(NodePath):
+class Model(Enum):
+
+    TERRAIN = 1
+    GROUND = 2
+    SENSOR = 3
+    TUNNEL = 4
+
+    @property
+    def mask(self):
+        return BitMask32.bit(self.value)
+
+
+class ModelRoot(NodePath):
 
     def __init__(self, name, mask):
         super().__init__(BulletRigidBodyNode(name))
@@ -43,20 +57,21 @@ class Model(NodePath):
             parent.set_texture(ts, tex)
 
 
-class Tunnel(Model):
+class Tunnel(ModelRoot):
 
     def __init__(self, name, length, width=7., wall_height=6., thickness=1.2):
-        super().__init__(name, BitMask32.bit(4))
+        super().__init__(name, Model.TUNNEL.mask)
         self.length = length
         self.width = width
         self.thickness = thickness
         self.wall_height = wall_height
-
         self.create_model()
 
+        # self.node().deactivation_enabled = False
+
     def create_model(self):
-        root_wall = NodePath('door_wall')
-        root_wall.reparent_to(self)
+        tunnel = NodePath('material')
+        tunnel.reparent_to(self)
 
         # The wall of a tunnel
         wall = Box(
@@ -69,7 +84,8 @@ class Tunnel(Model):
             open_top=True,
             open_bottom=True).create()
 
-        self.assemble(root_wall, wall, Point3(0, 0, 0), Vec3(0, 0, 0))
+        self.assemble(tunnel, wall, Point3(0, 0, 0), Vec3(0, 0, 0))
+        wall.set_tex_scale(TextureStage.get_default(), 3, 1)
 
         # The top of the tunnel
         radius = self.width / 2
@@ -82,26 +98,16 @@ class Tunnel(Model):
             height=self.length,
             ring_slice_deg=180).create()
 
-        self.assemble(root_wall, top, Point3(0, y, z), Vec3(180, -90, 0))
+        self.assemble(tunnel, top, Point3(0, y, z), Vec3(180, -90, 0))
+        top.set_tex_scale(TextureStage.get_default(), 1, 3)
 
-        tex = base.loader.load_texture('textures/9-19-20k-300x300.jpg')
-        root_wall.set_texture(tex)
-
-        # guardrail = NodePath('guardrail')
-        # guardrail.reparent_to(self)
-
-        # rail = RoundedCornerBox(width=2., depth=2., height=0.3, open_top=True, open_bottom=True, thickness=0.2).create()
-        # pos = Point3(self.width / 2, self.length / 2 + 1.2, 0)
-        # self.assemble(guardrail, rail, pos, Vec3(0, 0, 90))
-
-        # tex = base.loader.load_texture('textures/1-1-17d-300x300.jpg')
-        # guardrail.set_texture(tex)
+        tunnel.set_texture(base.loader.load_texture('textures/brick_03.jpg'))
 
 
-class Sensor(Model):
+class Sensor(ModelRoot):
 
     def __init__(self, name, w, d):
-        super().__init__(name, BitMask32.bit(3))
+        super().__init__(name, Model.SENSOR.mask)
         self.set_transparency(TransparencyAttrib.MAlpha)
         self.set_color(LColor(1, 1, 1, 1))
         self.create_model(w, d)
@@ -111,10 +117,10 @@ class Sensor(Model):
         self.assemble(self, sensor, Point3(0, 0, 0), Vec3(0, 0, 0))
 
 
-class Ground(Model):
+class Ground(ModelRoot):
 
     def __init__(self, name, w=129, d=129, segs_w=43, segs_d=43):
-        super().__init__(name, BitMask32.bit(2))
+        super().__init__(name, Model.GROUND.mask)
         self.create_model(w, d, segs_w, segs_d)
 
     def create_model(self, w, d, segs_w, segs_d):
@@ -131,13 +137,12 @@ class Ground(Model):
         self.set_shader_input('tex_attribute', base.loader.load_texture('terrain/heightmap.png'))
 
 
-class Terrain(Model):
+class Terrain(ModelRoot):
 
     def __init__(self, name, file_path, height=80):
-        super().__init__(name, BitMask32.bit(1))
+        super().__init__(name, Model.TERRAIN.mask)
         self.file_path = file_path
         self.height = height
-
         self.make_geomip_terrain()
 
     def make_geomip_terrain(self):
@@ -186,47 +191,48 @@ class Scene:
 
     def __init__(self, world):
         self.world = world
+
         self.scene = NodePath('scene')
         self.scene.reparent_to(base.render)
 
+        self.create_terrain()
+        self.create_ground()
+        self.create_tunnels()
+
+    def create_terrain(self):
         self.terrain = Terrain('terrain', 'terrain/heightmap.png')
         self.terrain.reparent_to(self.scene)
         self.world.attach(self.terrain.node())
         self.terrain.set_z(-12)
 
+    def create_ground(self):
+        self.ground = Ground('ground', self.terrain.size_x, self.terrain.size_y)
+        self.ground.reparent_to(self.scene)
+        self.world.attach(self.ground.node())
+        self.ground.set_pos(Point3(0, 0, -51))
+
+    def create_tunnels(self):
         tunnel_z = -49.58
-        sensor_z = -51.03
+        sensor_z = self.ground.get_z() - 0.03
 
         tunnels = [
-            # [Point3(0.089979745, -37.0617, z), 38],    # angle: 0
-            [Point2(26.159046, -26.17214), 38],     # angle: 45
-            # [Point3(36.965766, -0.0605596, z), 39],    # angle: 90
-            [Point2(26.321306, 25.33707), 37],      # angle: 135
-            # [Point3(-0.065003, 37.109867, z), 39],     # angle: 180
-            [Point2(-26.392295, 26.402277), 38],    # angle: 225
-            # [Point3(-37.055004, 0.032763533, z), 38],  # angle: 270
-            [Point2(-25.89097, -26.889432), 38],    # angle: 315
+            [Point2(26.159046, -26.17214), 38],          # angle: 45
+            [Point2(26.321306, 25.33707), 37],           # angle: 135
+            [Point2(-26.392295, 26.402277), 38],         # angle: 225
+            [Point2(-25.89097, -26.889432), 38],         # angle: 315
         ]
 
         for i, (xy, length) in enumerate(tunnels):
             hpr = Vec3(45 + 90 * i, 0, 0)
-            # hpr = Vec3(i * 45, 0, 0)
             tunnel = Tunnel(f'tunnel_{i}', length)
             tunnel.set_pos_hpr(Point3(xy, tunnel_z), hpr)
             tunnel.reparent_to(self.scene)
             self.world.attach(tunnel.node())
 
+            # Embed a plain model beneath the ground
+            # so characters can pass through the terrain inside the tunnel.
             w = tunnel.width - tunnel.thickness * 2
             sensor = Sensor(f'sensor_{i}', w, length)
             sensor.set_pos_hpr(Point3(xy, sensor_z), hpr)
             sensor.reparent_to(self.scene)
             self.world.attach(sensor.node())
-
-
-
-        # self.tunnel = tunnel
-
-        self.ground = Ground('ground', self.terrain.size_x, self.terrain.size_y)
-        self.ground.reparent_to(self.scene)
-        self.world.attach(self.ground.node())
-        self.ground.set_pos(Point3(0, 0, -51))

@@ -27,11 +27,13 @@ def modify_heightmap(file_path):
     output_image(heightmap, 'heightmap')
 
     # Create circle image.
-    maker = TransparentCircleMask(h, w)
-    circle_img = maker.create_bg_image()
-    maker.create_circle(circle_img, radius=42)
-    circle_img = maker.blur(circle_img, kernel=51)
+    # maker = TransparentCircleMask(h, w)
+    # circle_img = maker.create_bg_image()
+    # maker.create_circle(circle_img, radius=42)
+    # circle_img = maker.blur(circle_img, kernel=51)
     # output_image(circle_img, 'circle_mask')
+
+    circle_img = cv2.imread('cir6.png')
 
     # Combine heightmap and circle images.
     arr = np.zeros((h, w, 4), dtype=np.uint8)
@@ -43,8 +45,8 @@ def modify_heightmap(file_path):
 
 
 if __name__ == '__main__':
-    create_ground_mask(129)
-    modify_heightmap('island_heightmap_20250915122638.png')
+    # create_ground_mask(129)
+    modify_heightmap('island_heightmap_20250929014156.png')
 
 
 
