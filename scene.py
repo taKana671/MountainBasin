@@ -3,15 +3,16 @@ from enum import Enum
 from panda3d.bullet import BulletRigidBodyNode
 from panda3d.bullet import BulletHeightfieldShape, ZUp
 from panda3d.bullet import BulletTriangleMeshShape, BulletTriangleMesh
-from panda3d.core import NodePath
+from panda3d.core import NodePath, PandaNode
 from panda3d.core import Vec3, Point2, Point3, BitMask32, LColor
 from panda3d.core import Filename, PNMImage
 from panda3d.core import Shader
 from panda3d.core import TextureStage, TransformState
 from panda3d.core import GeoMipTerrain
-from panda3d.core import TransparencyAttrib
+from panda3d.core import TransparencyAttrib, TexGenAttrib
+from panda3d.core import AmbientLight, DirectionalLight
 
-from shapes import Box, Cylinder, Plane
+from shapes import Box, Cylinder, Plane, Sphere
 
 
 class Model(Enum):
@@ -66,7 +67,6 @@ class Tunnel(ModelRoot):
         self.thickness = thickness
         self.wall_height = wall_height
         self.create_model()
-
         # self.node().deactivation_enabled = False
 
     def create_model(self):
@@ -178,7 +178,7 @@ class Terrain(ModelRoot):
             ['textures/tex_cracked.png', 10],
             ['textures/tex_moss.png', 10],
             ['textures/rock_04.jpg', 30],
-            ['terrain/ground_mask.png', None]
+            ['terrain/terrain_bottom_mask.png', None]
         ]
 
         self.root.set_shader_input("camera", base.camera)
@@ -187,33 +187,96 @@ class Terrain(ModelRoot):
         self.root.set_two_sided(True)
 
 
+class Sky(NodePath):
+
+    def __init__(self):
+        super().__init__(PandaNode('skybox_root'))
+        self.make_skybox()
+
+    def make_skybox(self):
+        self.sphere = Sphere(radius=500).create()
+        self.sphere.set_pos(0, 0, 0)
+        self.sphere.reparent_to(self)
+
+        ts = TextureStage.get_default()
+        self.sphere.set_tex_gen(ts, TexGenAttrib.M_world_cube_map)
+        self.sphere.set_tex_hpr(ts, (0, 180, 0))
+        self.sphere.set_tex_scale(ts, (1, -1))
+
+        self.sphere.set_light_off()
+        self.sphere.set_material_off()
+        imgs = base.loader.load_cube_map('textures/skybox_sphere/img_#.png')
+        self.sphere.set_texture(imgs)
+
+
+class BasicAmbientLight(NodePath):
+
+    def __init__(self):
+        super().__init__(AmbientLight('ambient_light'))
+        self.node().set_color((0.6, 0.6, 0.6, 1))
+        self.reparent_to(base.render)
+        base.render.set_light(self)
+
+
+class BasicDayLight(NodePath):
+
+    def __init__(self):
+        super().__init__(DirectionalLight('directional_light'))
+        self.node().get_lens().set_film_size(200, 200)
+        self.node().get_lens().set_near_far(10, 200)
+        self.node().set_color((1, 1, 1, 1))
+        self.set_pos_hpr(Point3(0, 0, 80), Vec3(0, -30, 0))
+        # self.node().set_shadow_caster(True, 8192, 8192)
+        self.node().set_shadow_caster(True, 512, 512)
+
+        state = self.node().get_initial_state()
+        temp = NodePath(PandaNode('temp_np'))
+        temp.set_state(state)
+        temp.set_depth_offset(-3)
+        # temp.set_depth_offset(-2)
+        self.node().set_initial_state(temp.get_state())
+
+        base.render.set_light(self)
+        base.render.set_shader_auto()
+        self.reparent_to(base.render)
+        # self.node().show_frustum()
+
+
 class Scene:
 
-    def __init__(self, world):
-        self.world = world
-
+    def __init__(self):
         self.scene = NodePath('scene')
         self.scene.reparent_to(base.render)
 
+        self.create_sky()
         self.create_terrain()
         self.create_ground()
         self.create_tunnels()
 
+        self.ambient_light = BasicAmbientLight()
+        self.day_light = BasicDayLight()
+
+    def add_to_scene(self, model, attach=True):
+        model.reparent_to(self.scene)
+        if attach:
+            base.world.attach(model.node())
+
     def create_terrain(self):
         self.terrain = Terrain('terrain', 'terrain/heightmap.png')
-        self.terrain.reparent_to(self.scene)
-        self.world.attach(self.terrain.node())
         self.terrain.set_z(-12)
+        self.add_to_scene(self.terrain)
 
     def create_ground(self):
         self.ground = Ground('ground', self.terrain.size_x, self.terrain.size_y)
-        self.ground.reparent_to(self.scene)
-        self.world.attach(self.ground.node())
         self.ground.set_pos(Point3(0, 0, -51))
+        self.add_to_scene(self.ground)
 
     def create_tunnels(self):
         tunnel_z = -49.58
         sensor_z = self.ground.get_z() - 0.03
+
+        self.tunnels_np = NodePath('tunnels')
+        self.tunnels_np.reparent_to(self.scene)
 
         tunnels = [
             [Point2(26.159046, -26.17214), 38],          # angle: 45
@@ -226,13 +289,16 @@ class Scene:
             hpr = Vec3(45 + 90 * i, 0, 0)
             tunnel = Tunnel(f'tunnel_{i}', length)
             tunnel.set_pos_hpr(Point3(xy, tunnel_z), hpr)
-            tunnel.reparent_to(self.scene)
-            self.world.attach(tunnel.node())
+            self.add_to_scene(tunnel)
 
             # Embed a plain model beneath the ground
             # so characters can pass through the terrain inside the tunnel.
             w = tunnel.width - tunnel.thickness * 2
             sensor = Sensor(f'sensor_{i}', w, length)
             sensor.set_pos_hpr(Point3(xy, sensor_z), hpr)
-            sensor.reparent_to(self.scene)
-            self.world.attach(sensor.node())
+            self.add_to_scene(sensor)
+
+    def create_sky(self):
+        self.sky = Sky()
+        self.sky.set_pos(0, 0, -40)
+        self.add_to_scene(self.sky, False)

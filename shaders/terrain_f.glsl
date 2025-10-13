@@ -25,39 +25,6 @@ in vec4 vertex;
 
 out vec4 fragColor;
 
-// uniform vec3 wspos_camera;
-// in vec3 vtx_pos;
-
-
-// uniform struct {
-//     sampler2D data_texture;
-//     sampler2D heightfield;
-//     int view_index;
-//     int terrain_size;
-//     int chunk_size;
-// } ShaderTerrainMesh;
-
-
-
-// Compute normal from the heightmap
-// vec3 get_terrain_normal() {
-//     const float terrain_height = 50.0;
-//     // vec3 pixel_size = vec3(1.0, -1.0, 0) / textureSize(ShaderTerrainMesh.heightfield, 0).xxx;
-//     vec3 pixel_size = vec3(1.0, -1.0, 0) / vertex.xxx;
-//     float u0 = texture(ShaderTerrainMesh.heightfield, vertex.xy + pixel_size.yz).x * terrain_height;
-//     float u1 = texture(ShaderTerrainMesh.heightfield, vertex.xy + pixel_size.xz).x * terrain_height;
-//     float v0 = texture(ShaderTerrainMesh.heightfield, vertex.xy + pixel_size.zy).x * terrain_height;
-//     float v1 = texture(ShaderTerrainMesh.heightfield, vertex.xy + pixel_size.zx).x * terrain_height;
-
-//     // float u0 = texture(ShaderTerrainMesh.heightfield, terrain_uv + pixel_size.yz).x * terrain_height;
-//     // float u1 = texture(ShaderTerrainMesh.heightfield, terrain_uv + pixel_size.xz).x * terrain_height;
-//     // float v0 = texture(ShaderTerrainMesh.heightfield, terrain_uv + pixel_size.zy).x * terrain_height;
-//     // float v1 = texture(ShaderTerrainMesh.heightfield, terrain_uv + pixel_size.zx).x * terrain_height;
-//     vec3 tangent = normalize(vec3(1.0, 0, u1 - u0));
-//     vec3 binormal = normalize(vec3(0, 1.0, v1 - v0));
-//     return normalize(cross(tangent, binormal));
-// }
-
 
 void main() {
     // tex_rock
@@ -77,12 +44,6 @@ void main() {
     diffuse += tex3 * texture(tex_attribute, texcoord3.st).a;
 
     vec4 tex_g = texture(p3d_Texture5, texcoord_g.st).rgba;
-    
-    // float w = tex_g.r;
-    // vec3 ground = tex4.rgb * w + tex3 * (1.0 - w);
-    // vec3 color = vertex.z <= 0.0 ? ground: diffuse;
-
-
     fragColor = vec4(diffuse, 1.0);
 
     if ((vertex.z <= 0.0) || (vertex.z > 0.0 && vertex.z < 0.1 && tex_g.r > 0.2)) {
