@@ -15,6 +15,9 @@ from scene import Scene, Model
 from characters.walker import Walker
 
 
+ROTATING_TERRAIN = False
+
+
 load_prc_file_data("", """
     textures-power-2 none
     gl-coordinate-system default
@@ -65,6 +68,11 @@ class TrackingCamera(CustomCamera):
 
     def setup_camera(self, pos):
         display_region = base.win.make_display_region(self.display_region)
+        # Without the following two lines, the sky will be rendered in front of the
+        # inner side of the torus-shaped terrain.
+        display_region.set_clear_depth_active(True)
+        display_region.set_clear_depth(1.0)
+
         self.camera = NodePath(Camera('tracking_camera'))
         self.camera.node().get_lens().set_fov(90)
         self.camera.node().get_lens().set_near(0.1)
@@ -188,7 +196,7 @@ class TerrainCamera(CustomCamera):
         self.before_mouse_pos = Vec2(mouse_pos.xy)
 
 
-class BasinTerrain(ShowBase):
+class TorusShapedTerrain(ShowBase):
 
     def __init__(self):
         super().__init__()
@@ -210,22 +218,19 @@ class BasinTerrain(ShowBase):
         self.floater.set_z(3.0)
         self.floater.reparent_to(self.walker)
 
+        self.scene = Scene()
+
         # create custom camera
-        self.camera_controller = TrackingCamera(
-            self.walker, Point3(0, -5, -47), self.floater)
+        if ROTATING_TERRAIN:
+            self.dragging = False
+            self.accept('mouse1', self.mouse_click)
+            self.accept('mouse1-up', self.mouse_release)
 
-        # ##### when rotate by dragging#####
-        # self.custom_camera = TerrainCamera(self.render, Point3(160, -160, 10), Point3(0, 0, 0))
-        # self.camera_root = NodePath('camera_root')
-        # self.camera_root.reparent_to(self.render)
-        # self.camera.set_pos(Point3(30, -30, 100))
-        # self.camera.look_at(Point3(0, 0, 10))
-        # self.camera.reparent_to(self.camera_root)
-        # #################################
-
-        self.scene = Scene(self.world)
-        self.target = None
-        self.dragging = False
+            self.custom_camera = TerrainCamera(
+                self.render, Point3(0, -300, 200), Point3(0, 0, 0))
+        else:
+            self.camera_controller = TrackingCamera(
+                self.walker, Point3(0, -5, -47), self.floater)
 
         inputState.watch_with_modifiers('forward', 'arrow_up')
         inputState.watch_with_modifiers('backward', 'arrow_down')
@@ -236,18 +241,18 @@ class BasinTerrain(ShowBase):
         self.accept('d', self.toggle_debug)
         self.accept('escape', sys.exit)
 
-        self.accept('mouse1', self.mouse_click)
-        self.accept('mouse1-up', self.mouse_release)
         self.taskMgr.add(self.update, 'update')
 
-        self.accept('x', self.positioning, ['x', 1])
-        self.accept('shift-x', self.positioning, ['x', -1])
-        self.accept('y', self.positioning, ['y', 1])
-        self.accept('shift-y', self.positioning, ['y', -1])
-        self.accept('z', self.positioning, ['z', 1])
-        self.accept('shift-z', self.positioning, ['z', -1])
-        self.accept('h', self.positioning, ['h', 1])
-        self.accept('shift-h', self.positioning, ['h', -1])
+        # The following lines are used to verify the placement position of models such as tunnels.
+        self.target = None
+        # self.accept('x', self.positioning, ['x', 1])
+        # self.accept('shift-x', self.positioning, ['x', -1])
+        # self.accept('y', self.positioning, ['y', 1])
+        # self.accept('shift-y', self.positioning, ['y', -1])
+        # self.accept('z', self.positioning, ['z', 1])
+        # self.accept('shift-z', self.positioning, ['z', -1])
+        # self.accept('h', self.positioning, ['h', 1])
+        # self.accept('shift-h', self.positioning, ['h', -1])
 
     def positioning(self, key, direction):
         if self.target:
@@ -279,9 +284,6 @@ class BasinTerrain(ShowBase):
             print(f'target hpr: {self.target.get_hpr()}')
 
         print(f'walker pos: {self.walker.get_pos()}')
-        # rel_pos = self.walker.get_pos(self.scene.terrain.root)
-        # block_pos = self.scene.terrain.terrain.get_block_from_pos(rel_pos.x, rel_pos.y)
-        # print(block_pos)
 
     def toggle_debug(self):
         # self.scene.terrain.toggle_wireframe()
@@ -320,22 +322,21 @@ class BasinTerrain(ShowBase):
         direction = self.control_walker()
         self.walker.update(dt, direction)
 
-        if direction.y:
-            self.camera_controller.track(dt)
+        if ROTATING_TERRAIN:
+            if self.mouseWatcherNode.has_mouse():
+                mouse_pos = self.mouseWatcherNode.get_mouse()
 
-        # ##### when rotate by dragging#####
-        # if self.mouseWatcherNode.has_mouse():
-        #     mouse_pos = self.mouseWatcherNode.get_mouse()
-
-        #     if self.dragging:
-        #         if globalClock.get_frame_time() - self.dragging_start_time >= 0.2:
-        #             self.custom_camera.rotate_camera(mouse_pos, dt)
-        # ##################################
+                if self.dragging:
+                    if globalClock.get_frame_time() - self.dragging_start_time >= 0.2:
+                        self.custom_camera.rotate_camera(mouse_pos, dt)
+        else:
+            if direction.y:
+                self.camera_controller.track(dt)
 
         self.world.do_physics(dt)
         return task.cont
 
 
 if __name__ == '__main__':
-    app = BasinTerrain()
+    app = TorusShapedTerrain()
     app.run()
