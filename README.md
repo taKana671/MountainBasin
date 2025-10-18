@@ -5,7 +5,7 @@ The terrain was created from a heightmap where noise was processed into a torus 
 Additionally, I rewrote the program multiple times to prevent the camera from going through the 3D models and characters from clipping through tunnels or terrain.
 The skybox was created using the repository [skybox](https://github.com/taKana671/skybox),.
 
-https://github.com/user-attachments/assets/4817cada-e7e2-432e-bbcc-45baba662415
+https://github.com/user-attachments/assets/29819ced-495e-46ec-8cf2-ec454fd99344
 
 # Requirements
 
