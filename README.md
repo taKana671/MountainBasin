@@ -16,6 +16,11 @@ https://github.com/user-attachments/assets/29819ced-495e-46ec-8cf2-ec454fd99344
 * Python 3.12
 * Windows11
 
+# Clone this repository with submodule.
+```
+git clone --recursive https://github.com/taKana671/TorusShapedTerrain.git
+```
+
 # Terrain
 The heightmap and mask images were generated using the repository  [TextureGenerator](https://github.com/taKana671/TextureGenerator). 
 See: `create_terrain_images.py`
