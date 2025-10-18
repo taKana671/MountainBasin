@@ -3,7 +3,7 @@ from enum import Enum, auto
 from direct.actor.Actor import Actor
 from panda3d.bullet import BulletCapsuleShape, ZUp
 from panda3d.bullet import BulletRigidBodyNode, BulletSphereShape
-from panda3d.core import BitMask32, NodePath, Vec3
+from panda3d.core import NodePath, Vec3
 from panda3d.core import TransformState
 
 from scene import Model
@@ -30,7 +30,7 @@ class Walker(NodePath):
         self.node().add_shape(shape)
         self.node().set_kinematic(True)
 
-        self.set_collide_mask(BitMask32.bit(2))
+        self.set_collide_mask(Model.RALPH.mask)
         self.set_scale(0.5)
         self.set_h(180)
         base.world.attach(self.node())
@@ -69,43 +69,46 @@ class Walker(NodePath):
         if self.actor.get_current_anim() != anim:
             self.actor.loop(anim)
 
-    def shoot_a_ray(self, from_pos, distance, mask):
-        to_pos = from_pos + distance
-
-        if (hit := base.world.ray_test_closest(from_pos, to_pos, mask)).has_hit():
-            return hit
-
-    def check_collisions(self, current_pos, next_pos, mask):
-        from_pos = TransformState.make_pos(current_pos)
-        to_pos = TransformState.make_pos(next_pos)
-
-        if (result := base.world.sweep_test_closest(
-                self.sweep_shape, from_pos, to_pos, mask, 0.0)).has_hit():
-            return result
-
     def move(self, dt, direction_y):
         current_pos = self.get_pos()
         speed = self.forward_speed if direction_y < 0 else self.backward_speed
         orientation = self.get_quat(base.render).get_forward()
         next_pos = current_pos + orientation * direction_y * speed * dt
 
-        if not (hit := self.shoot_a_ray(
-                current_pos, Vec3(0, 0, -2.5), Model.GROUND.mask)):
+        # the character cannot move, if there is no ground beneath the feet at the next destination.
+        if not self.shoot_a_ray(next_pos, Vec3(0, 0, -2.5), Model.GROUND.mask):
             return
 
-        next_pos.z = hit.get_hit_pos().z + 1.5
-
-        if (result := self.check_collisions(
-                current_pos, next_pos, Model.TERRAIN.mask | Model.TUNNEL.mask)):
-
-            if result.get_node().get_name().startswith('tunnel'):
+        # The character cannot move, if being currently colliding with a tunnel and cannot move away from it.
+        if self.detect_collision():
+            if self.predict_collisions(current_pos, next_pos, Model.TUNNEL.mask):
                 return
 
-            if not (hit := self.shoot_a_ray(
-                    next_pos, Vec3(0, 0, -2.5), Model.SENSOR.mask)):
+        # If moving to the next location causes the character to be on a cliff,
+        # cannot move unless there is a sensor underground.
+        if result := self.shoot_a_ray(next_pos, Vec3(0, 0, -1.5), Model.TERRAIN.mask):
+            if not self.shoot_a_ray(result.get_hit_pos(), Vec3(0, 0, -2.5), Model.SENSOR.mask):
                 return
 
         self.set_pos(next_pos)
+
+    def detect_collision(self):
+        if base.world.contact_test(self.node(), use_filter=True).get_num_contacts() > 0:
+            return True
+
+    def shoot_a_ray(self, from_pos, distance, mask):
+        to_pos = from_pos + distance
+
+        if (result := base.world.ray_test_closest(from_pos, to_pos, mask)).has_hit():
+            return result
+
+    def predict_collisions(self, current_pos, next_pos, mask):
+        from_pos = TransformState.make_pos(current_pos)
+        to_pos = TransformState.make_pos(next_pos)
+
+        if (result := base.world.sweep_test_closest(
+                self.sweep_shape, from_pos, to_pos, mask, 0.0)).has_hit():
+            return result
 
     def turn(self, dt, direction_x):
         angle = self.angular_velocity * direction_x * dt

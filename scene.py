@@ -21,6 +21,7 @@ class Model(Enum):
     GROUND = 2
     SENSOR = 3
     TUNNEL = 4
+    RALPH = 5
 
     @property
     def mask(self):
@@ -61,7 +62,7 @@ class ModelRoot(NodePath):
 class Tunnel(ModelRoot):
 
     def __init__(self, name, length, width=7., wall_height=6., thickness=1.2):
-        super().__init__(name, Model.TUNNEL.mask)
+        super().__init__(name, Model.TUNNEL.mask | Model.RALPH.mask)
         self.length = length
         self.width = width
         self.thickness = thickness
@@ -275,11 +276,11 @@ class Scene:
         tunnel_z = -49.58
         sensor_z = self.ground.get_z() - 0.03
 
-        self.tunnels_np = NodePath('tunnels')
-        self.tunnels_np.reparent_to(self.scene)
+        # self.tunnels_np = NodePath('tunnels')
+        # self.tunnels_np.reparent_to(self.scene)
 
         tunnels = [
-            [Point2(26.159046, -26.17214), 38],          # angle: 45
+            [Point2(26.179046, -26.17214), 38],          # angle: 45
             [Point2(26.321306, 25.33707), 37],           # angle: 135
             [Point2(-26.392295, 26.402277), 38],         # angle: 225
             [Point2(-25.89097, -26.889432), 38],         # angle: 315
@@ -297,6 +298,8 @@ class Scene:
             sensor = Sensor(f'sensor_{i}', w, length)
             sensor.set_pos_hpr(Point3(xy, sensor_z), hpr)
             self.add_to_scene(sensor)
+
+            self.tunnel = tunnel
 
     def create_sky(self):
         self.sky = Sky()
