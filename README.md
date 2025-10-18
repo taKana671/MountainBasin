@@ -16,10 +16,28 @@ https://github.com/user-attachments/assets/29819ced-495e-46ec-8cf2-ec454fd99344
 * Python 3.12
 * Windows11
 
-# Clone this repository with submodule.
+# Usage
+
+#### Clone this repository with submodule.
+
 ```
 git clone --recursive https://github.com/taKana671/TorusShapedTerrain.git
 ```
+
+#### Execute the following command
+```
+python torus_shaped_terrain.py
+```
+
+#### Character Controls:
+
+* Press [Esc] to quit.
+* Press [up arrow] key to go foward.
+* Press [left arrow] key to turn left.
+* Press [right arrow] key to turn right.
+* Press [down arrow] key to go back.
+* Press [ D ] key to toggle debug ON and OFF.
+
 
 # Terrain
 The heightmap and mask images were generated using the repository  [TextureGenerator](https://github.com/taKana671/TextureGenerator). 
@@ -29,12 +47,3 @@ See: `create_terrain_images.py`
 
 <img width="637" height="518" alt="Image" src="https://github.com/user-attachments/assets/2c483963-eb5d-47d0-b43f-3f0d0854dcc1" />
 
-# Character Controls:
-
-* Press [Esc] to quit.
-* Press [up arrow] key to go foward.
-* Press [left arrow] key to turn left.
-* Press [right arrow] key to turn right.
-* Press [down arrow] key to go back.
-* Press [ D ] key to toggle debug ON and OFF.
-  
